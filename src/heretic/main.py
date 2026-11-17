@@ -405,6 +405,27 @@ def run():
             settings = Settings.model_validate_json(
                 existing_study.user_attrs["settings"]
             )
+            # Restoring the study's settings wholesale silently discards the
+            # current invocation's post-processing CLI flags (--trial-index,
+            # --model-action, --save-directory, ...) because they were unset
+            # when the study was created. Interactive users are simply
+            # re-prompted, but a headless run crashes with EOFError inside
+            # questionary. Re-apply every post-processing option that was
+            # explicitly given on this invocation's command line.
+            invocation = Settings()
+            for field_name in (
+                "checkpoint_action",
+                "trial_index",
+                "n_additional_trials",
+                "model_action",
+                "save_directory",
+                "export_strategy",
+                "upload_repo_id",
+                "upload_repo_private",
+            ):
+                invocation_value = getattr(invocation, field_name)
+                if invocation_value is not None:
+                    setattr(settings, field_name, invocation_value)
         elif action == "restart":
             os.unlink(study_checkpoint_file)
             backend = JournalFileBackend(study_checkpoint_file, lock_obj=lock_obj)
